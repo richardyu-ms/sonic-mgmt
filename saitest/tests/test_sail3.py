@@ -21,6 +21,8 @@ import sys
 from struct import pack, unpack
 import itertools
 import logging
+from ptf.mask import Mask
+import ptf.packet as scapy
 
 from switch import *
 
@@ -74,6 +76,8 @@ def test_router_interface(ptfadapter, ports_list, cfg_facts, ptfhost, dut_ip):
                             ip_src='192.168.0.1',
                             ip_id=105,
                             ip_ttl=63)
+    
+
     try:
         testutils.send(ptfadapter, port2["port_index"][0], str(pkt))
         testutils.verify_packets(ptfadapter, exp_pkt, [port1["port_index"][0]])

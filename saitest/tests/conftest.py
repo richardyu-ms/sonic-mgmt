@@ -43,3 +43,5 @@ def saiserver_interface(ports_list, ptfhost):
     interface.setUp()
     switch_init(interface)
     return interface
+
+
