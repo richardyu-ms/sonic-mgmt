@@ -3,6 +3,10 @@ import logging
 import pytest
 import pdb
 
+from thrift.transport import TSocket
+from thrift.transport import TTransport
+from thrift.protocol import TBinaryProtocol
+
 from tests.common import config_reload
 from tests.common.utilities import wait_until
 from tests.common.helpers.assertions import pytest_assert as pt_assert
@@ -17,8 +21,7 @@ logger = logging.getLogger(__name__)
 OPT_DIR = "/opt"
 SAISERVER_SCRIPT = "saiserver.sh"
 SCRIPTS_SRC_DIR = "scripts/"
-SERVICES_LIST = ["syncd", "radv", "lldp", "dhcp_relay", "teamd", "swss", "bgp", "pmon"]
-DB_SERVICE = "database"
+SERVICES_LIST = ["swss", "syncd", "radv", "lldp", "dhcp_relay", "teamd", "bgp", "pmon"]
 
 
 @pytest.fixture(scope="module")
@@ -26,7 +29,7 @@ def start_saiserver(duthost, creds, deploy_saiserver):
     """
         Starts SAIServer docker on DUT.
     """
-    _start_saiserver(duthost)
+    _start_saiserver_with_retry(duthost)
     yield
     _stop_saiserver(duthost)
 
@@ -52,13 +55,47 @@ def prepare_saiserver_script(duthost):
     _delete_saiserver_script(duthost)
 
 
+def _start_saiserver_with_retry(duthost):
+    logger.info("Try to start saiserver.")
+    sai_ready = wait_until(140, 35, _is_saiserver_restarted, duthost)
+    pt_assert(sai_ready, "SaiServer failed to start in 140s")
+
+
+def _is_saiserver_restarted(duthost):
+    dut_ip = duthost.host.options['inventory_manager'].get_host(duthost.hostname).vars['ansible_host']
+    if _is_container_running(duthost, 'saiserver'):
+        logger.info("SAIServer already running, stop it for a restart")
+        _stop_saiserver(duthost)
+        duthost.shell("docker rm saiserver")
+    _start_saiserver(duthost)
+    rpc_ready = wait_until(32, 4, _is_rpc_server_ready, dut_ip)
+    if not rpc_ready:
+        logger.info("Failed to start up SAIServer, stop it for a restart")
+    return rpc_ready
+
+
+def _is_rpc_server_ready(dut_ip):
+    try:
+        transport = TSocket.TSocket(dut_ip, 9092)
+        transport = TTransport.TBufferedTransport(transport)
+        protocol  = TBinaryProtocol.TBinaryProtocol(transport)
+        logger.info("Checking rpc connection : {}:{}".format(dut_ip, 9002))
+        transport.open()
+        return True
+    except Exception as e: 
+        logger.info("Cannot open rpc connection : {}".format(e))
+        return False
+    finally:
+        transport.close()
+
+
 def _start_saiserver(duthost):
-    logging.info("Starting SAIServer docker for testing")      
+    logger.info("Starting SAIServer docker for testing")      
     duthost.shell(OPT_DIR + "/" + SAISERVER_SCRIPT + " start")
 
 
 def _stop_saiserver(duthost):
-    logger.info("Stopping the container '{}'...".format(container_name))
+    logger.info("Stopping the container 'saiserver'...")
     duthost.shell(OPT_DIR + "/" + SAISERVER_SCRIPT + " stop")
 
 
@@ -87,6 +124,15 @@ def _deploy_saiserver(duthost, creds):
     duthost.os_version
     )
 
+def _stop_database(duthost):
+    logger.info("Stopping service '{}' ...".format(DB_SERVICE))
+    duthost.stop_service(DB_SERVICE)
+
+
+def _recover_database(duthost):
+    logger.info("Starting service '{}' ...".format(DB_SERVICE))
+    duthost.start_service(DB_SERVICE)
+
 
 def _stop_dockers(duthost):
     """
@@ -94,18 +140,13 @@ def _stop_dockers(duthost):
     """
     for service in SERVICES_LIST:
         logger.info("Stopping service '{}' ...".format(service))
-        duthost.stop_service(service)
-    
-    logger.info("Stopping service '{}' ...".format(DB_SERVICE))
-    duthost.stop_service(DB_SERVICE)
+        duthost.stop_service(service)    
+
     _perform_services_shutdown_check(duthost)
 
 
-def _recover_dockers(duthost):
-    logger.info("Starting service '{}' ...".format(DB_SERVICE))
-    duthost.start_service(DB_SERVICE)
-    
-    logger.info("Reloading config and restarting swss...")
+def _recover_dockers(duthost):   
+    logger.info("Reloading config and restarting other services ...")
     config_reload(duthost)
 
 
@@ -174,8 +215,13 @@ def _perform_services_shutdown_check(duthost):
 
 
 def _is_container_running(duthost, container_name):
-    result = duthost.shell("docker inspect -f \{{\{{.State.Running\}}\}} {}".format(container_name))
-    return result["stdout_lines"][0].strip() == "true"
+    try:
+        result = duthost.shell("docker inspect -f \{{\{{.State.Running\}}\}} {}".format(container_name))
+        return result["stdout_lines"][0].strip() == "true"
+    except:
+        logger.info("Cannot get container '{0}' running state".format(duthost.hostname))
+    return False
+    
 
 
 def _get_vendor_id(duthost):
@@ -189,3 +235,10 @@ def _get_vendor_id(duthost):
         raise ValueError(error_message)
 
     return vendor_id
+
+
+
+
+
+    
+
