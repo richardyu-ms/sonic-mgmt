@@ -14,6 +14,7 @@ from tests.common.mellanox_data import is_mellanox_device
 from tests.common.system_utils.docker import load_docker_registry_info
 from tests.common.system_utils.docker import download_image
 from tests.common.system_utils.docker import tag_image
+from natsort import natsorted
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +23,17 @@ SAISERVER_SCRIPT = "saiserver.sh"
 SCRIPTS_SRC_DIR = "scripts/"
 SERVICES_LIST = ["swss", "syncd", "radv", "lldp", "dhcp_relay", "teamd", "bgp", "pmon"]
 SAI_PRC_PORT = 9092
+PTF_TEST_ROOT_DIR = "/tmp/sai_qualify"
+DUT_WORKING_DIR = "/home/admin"
+PORT_MAP_FILE_PATH = "/tmp/default_interface_to_front_map.ini"
+SAI_TEST_CASE_DIR_ON_PTF = "tests"
+SAI_TEST_REPORT_DIR_ON_PTF = "test_results"
+
 
 def pytest_addoption(parser):
     # sai test options
-    parser.addoption("--sai_test_folder", action="store", default=None, type=str, help="SAI test cases folder where the tests will be run.")
+    parser.addoption("--sai_repo_folder", action="store", default=None, type=str, help="SAI repo folder where the tests will be run.")
+    parser.addoption("--sai_test_rerpot_dir", action="store", default=None, type=str, help="SAI test report directory on mgmt node.")
 
 @pytest.fixture(scope="module")
 def start_saiserver(duthost, creds, deploy_saiserver):
@@ -56,6 +64,13 @@ def prepare_saiserver_script(duthost):
     _copy_saiserver_script(duthost)
     yield
     _delete_saiserver_script(duthost)
+
+
+@pytest.fixture(scope="module")
+def prepare_ptf_server(ptfhost, duthost):
+    _create_sai_port_map_file(ptfhost, duthost)
+    yield
+    _delete_sai_port_map_file(ptfhost)
 
 
 def _start_saiserver_with_retry(duthost):
@@ -167,27 +182,6 @@ def _deploy_saiserver(duthost, creds):
     "{}/{}".format(registry.host, docker_saiserver_image),
     duthost.os_version
     )
-
-def _stop_database(duthost):
-    """
-    Stops the database service (and container) in a DUT.
-
-    Args:
-        duthost (SonicHost): The target device.
-    """
-    logger.info("Stopping service '{}' ...".format(DB_SERVICE))
-    duthost.stop_service(DB_SERVICE)
-
-
-def _recover_database(duthost):
-    """
-    Starts the database service (and container) in a DUT.
-
-    Args:
-        duthost (SonicHost): The target device.
-    """
-    logger.info("Starting service '{}' ...".format(DB_SERVICE))
-    duthost.start_service(DB_SERVICE)
 
 
 def _stop_dockers(duthost):
@@ -307,7 +301,6 @@ def _is_container_running(duthost, container_name):
     return False
     
 
-
 def _get_sai_running_vendor_id(duthost):
     """
     Get the vendor id.
@@ -325,3 +318,39 @@ def _get_sai_running_vendor_id(duthost):
         raise ValueError(error_message)
 
     return vendor_id
+
+
+def _create_sai_port_map_file(ptfhost, duthost):
+    """
+    Create port mapping file on PTF server.
+
+    Args:
+        ptfhost (AnsibleHost): The PTF server.
+        duthost (SonicHost): The target device.
+    """
+
+    logger.info("Creating {0} for SAI test on PTF server.".format(PORT_MAP_FILE_PATH))
+    intfInfo = duthost.show_interface(command = "status")['ansible_facts']['int_status']
+    portList = natsorted([port for port in intfInfo if port.startswith('Ethernet')])
+
+    with open(PORT_MAP_FILE_PATH, 'w') as file:
+        file.write("# ptf host interface @ switch front port name\n")
+        file.writelines(
+            map(
+                    lambda (index, port): "{0}@{1}\n".format(index, port),
+                    enumerate(portList)
+                )
+            )
+        
+    ptfhost.copy(src=PORT_MAP_FILE_PATH, dest="/tmp")
+
+
+def _delete_sai_port_map_file(ptfhost):
+    """
+    Delete port mapping file on PTF server.
+
+    Args:
+        ptfhost (AnsibleHost): The PTF server.
+    """
+    logger.info("Deleting {0} file.".format(PORT_MAP_FILE_PATH))
+    ptfhost.file(path=PORT_MAP_FILE_PATH, state="absent")
