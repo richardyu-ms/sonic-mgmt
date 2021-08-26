@@ -111,7 +111,7 @@ def _prepare_test_env(ptfhost, request):
     """
     logger.info("Preparing SAI test environment.")
     _create_sai_test_folder(ptfhost)
-    _copy_sai_test_cases(ptfhost, request)
+    _copy_sai_test_cases(ptfhost, request.config.option.sai_test_dir)
 
 
 def _create_sai_test_folder(ptfhost):
@@ -125,7 +125,7 @@ def _create_sai_test_folder(ptfhost):
     ptfhost.shell("mkdir -p {0}".format(PTF_TEST_ROOT_DIR))
 
 
-def _copy_sai_test_cases(ptfhost, request):
+def _copy_sai_test_cases(ptfhost, SAI_TEST_DIR):
     """
     Copy SAI test cases to PTF server.
 
@@ -134,7 +134,7 @@ def _copy_sai_test_cases(ptfhost, request):
     """
     logger.info("Copying SAI test cases to PTF server.")
     ptfhost.shell("cd {0} && mkdir -p {1} && mkdir -p {2}".format(PTF_TEST_ROOT_DIR, SAI_TEST_CASE_DIR_ON_PTF, SAI_TEST_REPORT_DIR_ON_PTF))
-    ptfhost.copy(src=request.config.option.sai_test_dir, dest=PTF_TEST_ROOT_DIR + "/" + SAI_TEST_CASE_DIR_ON_PTF)
+    ptfhost.copy(src=SAI_TEST_DIR, dest=PTF_TEST_ROOT_DIR + "/" + SAI_TEST_CASE_DIR_ON_PTF)
 
 
 def _collect_test_result(duthost, ptfhost, request):
@@ -146,8 +146,8 @@ def _collect_test_result(duthost, ptfhost, request):
         ptfhost (AnsibleHost): The PTF server.
     """
     logger.info("Collecting test result and related information.")
-    _collect_sonic_os_and_platform_info(duthost, request)
-    _collect_sai_test_report_xml(ptfhost, request)
+    _collect_sonic_os_and_platform_info(duthost, request.config.option.sai_test_report_dir)
+    _collect_sai_test_report_xml(ptfhost, request.config.option.sai_test_report_dir)
 
 
 def _run_tests(dut, ptfhost):
@@ -177,7 +177,7 @@ def _cleanup_dut(duthost):
     duthost.file(path="{0}/version.txt".format(DUT_WORKING_DIR), state="absent")
 
 
-def _collect_sonic_os_and_platform_info(duthost, request):
+def _collect_sonic_os_and_platform_info(duthost, SAI_TEST_REPORT_DIR):
     """
     Collect SONiC OS and Testbed info.
 
@@ -186,10 +186,10 @@ def _collect_sonic_os_and_platform_info(duthost, request):
     """
     logger.info("Getting SONiC OS version and Testbed platform info.")
     duthost.shell("cd {0} && show version > version.txt".format(DUT_WORKING_DIR))
-    duthost.fetch(src="{0}/version.txt".format(DUT_WORKING_DIR), dest=request.config.option.sai_test_report_dir + "/", flat=True)
+    duthost.fetch(src="{0}/version.txt".format(DUT_WORKING_DIR), dest=SAI_TEST_REPORT_DIR + "/", flat=True)
 
 
-def _collect_sai_test_report_xml(ptfhost, request):
+def _collect_sai_test_report_xml(ptfhost, SAI_TEST_REPORT_DIR):
     """
     Collect SAI test report.
 
@@ -198,5 +198,5 @@ def _collect_sai_test_report_xml(ptfhost, request):
     """
     logger.info("Collecting xunit SAI tests log from ptf")
     ptfhost.shell("cd {0}/{1} && tar -czvf result.tar.gz *".format(PTF_TEST_ROOT_DIR, SAI_TEST_REPORT_DIR_ON_PTF))
-    ptfhost.fetch(src="{0}/{1}/result.tar.gz".format(PTF_TEST_ROOT_DIR,SAI_TEST_REPORT_DIR_ON_PTF), dest=request.config.option.sai_test_report_dir + "/", flat=True)
+    ptfhost.fetch(src="{0}/{1}/result.tar.gz".format(PTF_TEST_ROOT_DIR,SAI_TEST_REPORT_DIR_ON_PTF), dest=SAI_TEST_REPORT_DIR + "/", flat=True)
 
