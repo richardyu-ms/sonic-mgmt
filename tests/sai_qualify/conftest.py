@@ -4,7 +4,6 @@ import pytest
 
 from thrift.transport import TSocket
 from thrift.transport import TTransport
-from thrift.protocol import TBinaryProtocol
 
 from tests.common import config_reload
 from tests.common.utilities import wait_until
@@ -123,7 +122,6 @@ def _is_rpc_server_ready(dut_ip):
     try:
         transport = TSocket.TSocket(dut_ip, SAI_PRC_PORT)
         transport = TTransport.TBufferedTransport(transport)
-        protocol  = TBinaryProtocol.TBinaryProtocol(transport)
         logger.info("Attempting to open rpc connection : {}:{}".format(dut_ip, SAI_PRC_PORT))
         transport.open()
         logger.info("Successful in creating rpc connection : {}:{}".format(dut_ip, SAI_PRC_PORT))
@@ -296,7 +294,7 @@ def _is_container_running(duthost, container_name):
     try:
         result = duthost.shell("docker inspect -f \{{\{{.State.Running\}}\}} {}".format(container_name))
         return result["stdout_lines"][0].strip() == "true"
-    except:
+    except Exception as e:
         logger.info("Cannot get container '{0}' running state".format(duthost.hostname))
     return False
     
