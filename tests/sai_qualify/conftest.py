@@ -27,7 +27,7 @@ DUT_WORKING_DIR = "/home/admin"
 PORT_MAP_FILE_PATH = "/tmp/default_interface_to_front_map.ini"
 SAI_TEST_CASE_DIR_ON_PTF = "tests"
 SAI_TEST_REPORT_DIR_ON_PTF = "test_results"
-CONFIG = {}
+
 
 def pytest_addoption(parser):
     # sai test options
@@ -72,20 +72,6 @@ def prepare_ptf_server(ptfhost, duthost):
     _create_sai_port_map_file(ptfhost, duthost)
     yield
     _delete_sai_port_map_file(ptfhost)
-
-
-@pytest.fixture(scope="module")
-def parse_config(request):
-    CONFIG['SAI_REPO_DIR_ON_MGMT'] = request.config.option.sai_test_dir
-    CONFIG['SAI_TEST_RESULT_DIR'] = request.config.option.sai_test_report_dir
-
-    if not CONFIG['SAI_REPO_DIR_ON_MGMT'] or not CONFIG['SAI_TEST_RESULT_DIR']:
-        raise AttributeError("Needs to specify parameter: sai_repo_folder or sai_test_report_dir")
-
-    CONFIG['DUT_WORKING_DIR'] = DUT_WORKING_DIR
-    CONFIG['SAI_TEST_ROOT_DIR'] = PTF_TEST_ROOT_DIR
-
-    logger.info("Parsed config : {0}".format(CONFIG))
 
 
 def _start_saiserver_with_retry(duthost):
