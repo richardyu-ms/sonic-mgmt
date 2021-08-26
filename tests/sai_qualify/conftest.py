@@ -27,12 +27,14 @@ DUT_WORKING_DIR = "/home/admin"
 PORT_MAP_FILE_PATH = "/tmp/default_interface_to_front_map.ini"
 SAI_TEST_CASE_DIR_ON_PTF = "tests"
 SAI_TEST_REPORT_DIR_ON_PTF = "test_results"
-
+CONFIG = {}
 
 def pytest_addoption(parser):
     # sai test options
-    parser.addoption("--sai_repo_folder", action="store", default=None, type=str, help="SAI repo folder where the tests will be run.")
-    parser.addoption("--sai_test_rerpot_dir", action="store", default=None, type=str, help="SAI test report directory on mgmt node.")
+    parser.addoption("--sai_test_dir", action="store", default=None, type=str, help="SAI repo folder where the tests will be run.")
+    parser.addoption("--sai_test_report_dir", action="store", default=None, type=str, help="SAI test report directory on mgmt node.")
+
+
 
 @pytest.fixture(scope="module")
 def start_saiserver(duthost, creds, deploy_saiserver):
@@ -70,6 +72,20 @@ def prepare_ptf_server(ptfhost, duthost):
     _create_sai_port_map_file(ptfhost, duthost)
     yield
     _delete_sai_port_map_file(ptfhost)
+
+
+@pytest.fixture(scope="module")
+def parse_config(request):
+    CONFIG['SAI_REPO_DIR_ON_MGMT'] = request.config.option.sai_test_dir
+    CONFIG['SAI_TEST_RESULT_DIR'] = request.config.option.sai_test_report_dir
+
+    if not CONFIG['SAI_REPO_DIR_ON_MGMT'] or not CONFIG['SAI_TEST_RESULT_DIR']:
+        raise AttributeError("Needs to specify parameter: sai_repo_folder or sai_test_report_dir")
+
+    CONFIG['DUT_WORKING_DIR'] = DUT_WORKING_DIR
+    CONFIG['SAI_TEST_ROOT_DIR'] = PTF_TEST_ROOT_DIR
+
+    logger.info("Parsed config : {0}".format(CONFIG))
 
 
 def _start_saiserver_with_retry(duthost):
@@ -275,7 +291,7 @@ def _saiserver_services_env_check(duthost):
         if running_services:
             return False
         return True
-    
+
     shutdown_check = wait_until(10, 2, ready_for_saiserver)
     if running_services:
         format_list = ['{:>1}' for item in running_services] 
@@ -297,7 +313,7 @@ def _is_container_running(duthost, container_name):
     except Exception as e:
         logger.info("Cannot get container '{0}' running state".format(duthost.hostname))
     return False
-    
+
 
 def _get_sai_running_vendor_id(duthost):
     """
@@ -339,7 +355,7 @@ def _create_sai_port_map_file(ptfhost, duthost):
                     enumerate(portList)
                 )
             )
-        
+
     ptfhost.copy(src=PORT_MAP_FILE_PATH, dest="/tmp")
 
 
@@ -352,3 +368,4 @@ def _delete_sai_port_map_file(ptfhost):
     """
     logger.info("Deleting {0} file.".format(PORT_MAP_FILE_PATH))
     ptfhost.file(path=PORT_MAP_FILE_PATH, state="absent")
+

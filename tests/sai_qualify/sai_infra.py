@@ -23,16 +23,12 @@ pytestmark = [
 ]
 
 
-# will be processed by _parse_config(request)
-CONFIG = {}
-
 def test_sai_from_ptf(sai_testbed, duthost, ptfhost):
     """
         trigger the test here
     """
     _run_tests(duthost, ptfhost)
-    _collect_test_result(duthost, ptfhost)
-      
+
 
 @pytest.fixture(scope="module")
 def sai_testbed(
@@ -41,19 +37,19 @@ def sai_testbed(
     creds,
     request,
     ptfhost,
+    parse_config,
     start_saiserver,
     prepare_ptf_server):
     """
         Pytest fixture to handle setup and cleanup for the SAI tests.
     """
     duthost = duthosts[rand_one_dut_hostname]
-    _parse_config(request)
     try:        
         _setup_dut(ptfhost)
         yield  
     finally:  
         _teardown_dut(duthost, ptfhost)
-        
+
 
 def _setup_dut(ptfhost):
     """
@@ -69,7 +65,7 @@ def _teardown_dut(duthost, ptfhost):
         Tears down the SAI test.
     """
     logger.info("Teardown SAI tests.")
-
+    _collect_test_result(duthost, ptfhost)
     _cleanup_dut(duthost)
     _cleanup_ptf(ptfhost)
 
@@ -153,7 +149,7 @@ def _collect_test_result(duthost, ptfhost):
     logger.info("Collecting test result and related information.")
     _collect_sonic_os_and_platform_info(duthost)
     _collect_sai_test_report_xml(ptfhost)
-    
+ 
 
 def _run_tests(dut, ptfhost):
     """
@@ -169,7 +165,7 @@ def _run_tests(dut, ptfhost):
     dut_ip = dut.host.options['inventory_manager'].get_host(dut.hostname).vars['ansible_host']
     ptfhost.shell("cd {0} && ptf --test-dir {1} sail2.{2} --interface '0@eth0' --interface '1@eth1' --xunit --xunit-dir {3} -t \"server='{4}';port_map_file='{5}'\"".format(CONFIG['SAI_TEST_ROOT_DIR'], SAI_TEST_CASE_DIR_ON_PTF, test_case, SAI_TEST_REPORT_DIR_ON_PTF, dut_ip, PORT_MAP_FILE_PATH))
 
-    
+
 def _cleanup_dut(duthost):
     """
     Clean up DUT.
@@ -192,7 +188,7 @@ def _collect_sonic_os_and_platform_info(duthost):
     logger.info("Getting SONiC OS version and Testbed platform info.")
     duthost.shell("cd {0} && show version > version.txt".format(CONFIG['DUT_WORKING_DIR']))
     duthost.fetch(src="{0}/version.txt".format(CONFIG['DUT_WORKING_DIR']), dest=CONFIG['SAI_TEST_RESULT_DIR'] + "/", flat=True)
-    
+
 
 def _collect_sai_test_report_xml(ptfhost):
     """
@@ -206,15 +202,3 @@ def _collect_sai_test_report_xml(ptfhost):
     ptfhost.fetch(src="{0}/{1}/result.tar.gz".format(CONFIG['SAI_TEST_ROOT_DIR'],SAI_TEST_REPORT_DIR_ON_PTF), dest=CONFIG['SAI_TEST_RESULT_DIR'] + "/", flat=True)
 
 
-def _parse_config(request):
-    
-    CONFIG['SAI_REPO_DIR_ON_MGMT'] = request.config.option.sai_repo_folder
-    CONFIG['SAI_TEST_RESULT_DIR'] = request.config.option.sai_test_rerpot_dir
-
-    if not CONFIG['SAI_REPO_DIR_ON_MGMT'] or not CONFIG['SAI_TEST_RESULT_DIR']:
-        raise AttributeError("Needs to specify parameter: sai_repo_folder or sai_test_rerpot_dir")
-    
-    CONFIG['DUT_WORKING_DIR'] = DUT_WORKING_DIR
-    CONFIG['SAI_TEST_ROOT_DIR'] = PTF_TEST_ROOT_DIR
-
-    logger.info("Parsed config : {0}".format(CONFIG))
