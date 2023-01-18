@@ -479,7 +479,8 @@ def __deploy_saiserver(duthost, creds, request):
     # Set sysctl SENDBUF parameter for tests
     duthost.command("sysctl -w net.core.wmem_max=609430500")
 
-    logger.info("Loading docker image: {} ...".format(docker_saiserver_image))
+    logger.info("Downloading docker image: {}:{} ...".format(
+        docker_saiserver_image, duthost.os_version))
 
     download_image(
         duthost, registry, docker_saiserver_image, duthost.os_version)
@@ -502,7 +503,8 @@ def tag_image(duthost, tag, image_name, image_version="latest"):
         image_version (str): The version of the image to tag.
     """
     get_sai_running_vendor_id(duthost)
-
+    logger.info("Tagging docker image: {}:{} to {}...".format(
+        image_name, image_version, tag))
     duthost.command("docker tag {}:{} {}".format(image_name, image_version, tag))
 
 
