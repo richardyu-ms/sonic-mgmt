@@ -41,7 +41,7 @@ SONIC_SSH_PORT = 22
 SONIC_SSH_REGEX = 'OpenSSH_[\\w\\.]+ Debian'
 COMMON_CONFIG_FORMAT = ';common_configured=\'{}\''
 NEED_CONFIG = False
-PTF_TEST_CASE_TIMEOUT_IN_SEC = 600
+PTF_TEST_CASE_TIMEOUT_IN_SEC = 300
 
 
 # PTF_TEST_ROOT_DIR is the root folder for SAI testing
@@ -66,6 +66,8 @@ SAI_TEST_CTNR_CHECK_TIMEOUT_IN_SEC = 140
 SAI_TEST_CTNR_RESTART_INTERVAL_IN_SEC = 35
 RPC_RESTART_INTERVAL_IN_SEC = 32
 RPC_CHECK_INTERVAL_IN_SEC = 4
+
+PTF_INTERFACE_NUM = 32
 
 
 def pytest_addoption(parser):
@@ -117,6 +119,14 @@ def pytest_addoption(parser):
                      type=str, help="SAI SDK originla version before upgrade.")
     parser.addoption("--sai_upgrade_version", action="store", default=None,
                      type=str, help="SAI SDK upgrade version.")
+    parser.addoption("--ptf_test_timeout", action="store",
+                     default=SAI_TEST_CTNR_CHECK_TIMEOUT_IN_SEC,
+                     type=int, help="PTF Test case timeout in sec.")
+    parser.addoption("--ptf_interface_num", action="store",
+                     default=PTF_INTERFACE_NUM,
+                     type=int, help="Manual set PTF interfaces enable numbers.".join(
+                        "If set 0, then will use PTF env settings."
+                     ))
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -213,16 +223,21 @@ def prepare_ptf_server(ptfhost, duthost, tbinfo, enum_asic_index, request):
 
 
 @pytest.fixture(scope="module")
-def create_sai_test_interface_param(duthost, tbinfo, enum_asic_index):
+def create_sai_test_interface_param(duthost, tbinfo, enum_asic_index, request):
     """
     Create port interface list.
 
     Args:
         duthost (SonicHost): The target device.
     """
-    port_numbers = len(
-        __get_dut_minigraph_interface_info(
-            duthost, tbinfo, enum_asic_index))
+
+    if request.ptf_interface_num:
+        port_numbers = request.ptf_interface_num
+    else:
+        port_numbers = len(
+            __get_dut_minigraph_interface_info(
+                duthost, tbinfo, enum_asic_index))
+
     logger.info("Creating {} port interface list".format(port_numbers))
     interfaces_list = []
 
