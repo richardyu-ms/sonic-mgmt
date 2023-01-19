@@ -51,10 +51,10 @@ def test_sai(sai_testbed, sai_community_test_env_check,
     except BaseException as e:
         logger.info("Test case [{}] failed, \
             trying to restart sai test container,\
-                 failed as {}.".format(community_test_case, e))
+                 failed as {}.".format(community_test_case, str(e)))
         stop_and_rm_sai_test_container(
             duthost, get_sai_test_container_name(request))
-        pytest.fail("Test case [{}] failed".format(community_test_case), e)
+        pytest.fail("Test case [{}] failed".format(community_test_case), str(e))
     finally:
         store_test_result(ptfhost)
 

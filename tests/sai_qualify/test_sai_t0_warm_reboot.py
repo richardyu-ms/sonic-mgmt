@@ -52,8 +52,8 @@ def test_sai(
         sai_test_interface_para = create_sai_test_interface_param
         run_case_from_ptf(duthost, dut_ip, ptfhost, sai_test_case, sai_test_interface_para, request)
     except BaseException as e:
-        logger.info("Test case [{}] failed, failed as {}.".format(sai_test_case, e))
-        pytest.fail("Test case [{}] failed".format(sai_test_case), e)
+        logger.info("Test case [{}] failed, failed as {}.".format(sai_test_case, str(e)))
+        pytest.fail("Test case [{}] failed".format(sai_test_case), str(e))
     finally:
         stop_and_rm_sai_test_container(
             duthost, get_sai_test_container_name(request))
